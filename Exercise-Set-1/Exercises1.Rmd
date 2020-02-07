@@ -1,0 +1,302 @@
+---
+title: "Data Mining Exercises 1"
+author: "Tristan Robins"
+date: "2/3/2020"
+output:
+  md_document:
+    variant: markdown_github
+---
+
+## Part One
+
+Using the ABIA.csv dataset, my aim was to assess how departure delays correspond to arrival delays per airline. Obviously we should expect a relatively linear trend where a one-minute delay results in a one-minute later arrival, but it's also possible some airlines may have been willing to expend more gas to "make-up" for departure delays. I was also curious as to whether that was accentuated during different days of the week for which flight travel is more utilized and thus planes weigh less (allowing planes to speed up mid-flight if there was a delay of some sort). I was also curious as to whether longer or shorter flights generally stayed true to the expected linear trend and if that varied per airline.
+
+```{r}
+library(ggplot2)
+library(tidyverse)
+
+ABIA.csv <- read.csv("~/Documents/Master/Data Mining/ABIA.csv.txt")
+data(ABIA.csv)
+
+ggplot(data = ABIA.csv) + 
+  geom_point(mapping = aes(DepDelay, ArrDelay, color = DayOfWeek)) +
+  scale_color_gradient(low = "orange", high = "blue") +
+  facet_wrap(~ UniqueCarrier, nrow = 4) + 
+  labs(title = "Austin Bergstrom International Airport",
+       subtitle = "Arrival Delays given Departure Delays per Carrier") +
+  ylim(-100,500) +
+  xlim(-100, 500)
+
+ggplot(data = ABIA.csv) + 
+  geom_point(mapping = aes(DepDelay, ArrDelay, color = CRSElapsedTime)) +
+  scale_color_gradient(low = "orange", high = "blue") +
+  facet_wrap(~ UniqueCarrier, nrow = 4) + 
+  labs(title = "Austin Bergstrom International Airport",
+       subtitle = "Arrival Delays given Departure Delays per Carrier per Estimated Elapsed Flight Time") +
+  ylim(-100,500) +
+  xlim(-100, 500)
+```
+
+
+The first plot details each airline's trend between Departure Delay times and Arrival Delay times for any given day of the week. It explains how each airline, per day, is able to make-up lost time given a departure delay. We see that in the middle of the week, fewer flights are delayed and thus fewer arrive delayed. This is likely because of fewer people flying in the middle of the week because of work and school commitments.
+
+The second plot shows how each airline's delays occur given their flight lengths. For the most part, given a longer expected flight, there is a much lower chance of an arrival delay. This is likely because it is easier to make up lost time on a longer flight than it is on a shorter flight.
+
+
+## Part Two
+
+Using the sclass.csv dataset, I was able to apply K-Nearest Neighbors non-parametric modeling to the data after having split the data into training and testing sets. I looked at a handful of different options for K and discerned what seemed to accomodate for the most information, accurately, and without over-generalizing.
+
+```{r}
+library(tidyverse)
+library(FNN)
+library(mosaic)
+
+sclass.csv <- read.csv("~/Documents/Master/Data Mining/sclass.csv.txt")
+
+data(sclass.csv)
+sclass550 = subset(sclass.csv, trim == '350')
+summary(sclass550)
+sclass65AMG = subset(sclass.csv, trim == '65 AMG')
+summary(sclass65AMG)
+
+ggplot(data = sclass550) +
+  geom_point(mapping = aes(x=mileage, y = price))
+ggplot(data = sclass65AMG) +
+  geom_point(mapping = aes(x = mileage, y = price))
+
+
+#Train/Test splitting
+
+N550 = nrow(sclass550)
+N65AMG = nrow(sclass65AMG)
+
+N550_train = floor(.8*N550)
+N550_test = N550 - N550_train
+N65AMG_train = floor(.8*N65AMG)
+N65AMG_test = N65AMG - N65AMG_train
+
+N550_train_ind = sample.int(N550, N550_train, replace=FALSE)
+N65AMG_train_ind = sample.int(N65AMG, N65AMG_train, replace=FALSE)
+
+
+D550_train = sclass550[N550_train_ind,]
+D550_test = sclass550[-N550_train_ind,]
+D65AMG_train = sclass65AMG[N65AMG_train_ind,]
+D65AMG_test = sclass65AMG[-N65AMG_train_ind,]
+
+D550_test = arrange(D550_test, mileage)
+D65AMG_test = arrange(D65AMG_test, mileage)
+
+
+X_550_train = select(D550_train, mileage)
+y_550_train = select(D550_train, price)
+X_550_test = select(D550_test, mileage)
+y_550_test = select(D550_test, price)
+
+X_65AMG_train = select(D65AMG_train, mileage)
+y_65AMG_train = select(D65AMG_train, price)
+X_65AMG_test = select(D65AMG_test, mileage)
+y_65AMG_test = select(D65AMG_test, price)
+
+
+#RMSE
+
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+
+#KNN3
+knn3_550 = knn.reg(train = X_550_train, test = X_550_test, y = y_550_train, k = 3)
+knn3_65AMG = knn.reg(train = X_65AMG_train, test = X_65AMG_test, y = y_65AMG_train, k = 3)
+
+
+
+y550pred_knn3 = knn3_550$pred
+y65AMGpred_knn3 = knn3_65AMG$pred
+
+rmse(y_550_test, y550pred_knn3)
+rmse(y_65AMG_test, y65AMGpred_knn3)
+
+#Testing the fit
+
+D550_test$y550pred_knn3 = y550pred_knn3
+
+p_test550 = ggplot(data = D550_test) + 
+  geom_point(mapping = aes(x = mileage, y = price)) + 
+  theme_bw(base_size=18)
+
+p_test550 + geom_path(aes(x = mileage, y = y550pred_knn3), color='blue')
+
+
+
+D65AMG_test$y65AMGpred_knn3 = y65AMGpred_knn3
+
+p_test65AMG = ggplot(data = D65AMG_test) + 
+  geom_point(mapping = aes(x = mileage, y = price)) + 
+  theme_bw(base_size=18)
+
+p_test65AMG + geom_path(aes(x = mileage, y = y65AMGpred_knn3), color='blue')
+
+
+
+#KNN10
+knn10_550 = knn.reg(train = X_550_train, test = X_550_test, y = y_550_train, k = 10)
+knn10_65AMG = knn.reg(train = X_65AMG_train, test = X_65AMG_test, y = y_65AMG_train, k = 10)
+
+
+
+y550pred_knn10 = knn10_550$pred
+y65AMGpred_knn10 = knn10_65AMG$pred
+
+rmse(y_550_test, y550pred_knn10)
+rmse(y_65AMG_test, y65AMGpred_knn10)
+
+#Testing the fit
+
+D550_test$y550pred_knn10 = y550pred_knn10
+
+p_test550 = ggplot(data = D550_test) + 
+  geom_point(mapping = aes(x = mileage, y = price)) + 
+  theme_bw(base_size=18)
+
+p_test550 + geom_path(aes(x = mileage, y = y550pred_knn10), color='green')
+
+
+
+D65AMG_test$y65AMGpred_knn10 = y65AMGpred_knn10
+
+p_test65AMG = ggplot(data = D65AMG_test) + 
+  geom_point(mapping = aes(x = mileage, y = price)) + 
+  theme_bw(base_size=18)
+
+p_test65AMG + geom_path(aes(x = mileage, y = y65AMGpred_knn10), color='green')
+
+
+#KNN20
+knn20_550 = knn.reg(train = X_550_train, test = X_550_test, y = y_550_train, k = 20)
+knn20_65AMG = knn.reg(train = X_65AMG_train, test = X_65AMG_test, y = y_65AMG_train, k = 20)
+
+
+
+y550pred_knn20 = knn20_550$pred
+y65AMGpred_knn20 = knn20_65AMG$pred
+
+rmse(y_550_test, y550pred_knn20)
+rmse(y_65AMG_test, y65AMGpred_knn20)
+
+#Testing the fit
+
+D550_test$y550pred_knn20 = y550pred_knn20
+
+p_test550 = ggplot(data = D550_test) + 
+  geom_point(mapping = aes(x = mileage, y = price)) + 
+  theme_bw(base_size=18)
+
+p_test550 + geom_path(aes(x = mileage, y = y550pred_knn20), color='orange')
+
+
+
+D65AMG_test$y65AMGpred_knn20 = y65AMGpred_knn20
+
+p_test65AMG = ggplot(data = D65AMG_test) + 
+  geom_point(mapping = aes(x = mileage, y = price)) + 
+  theme_bw(base_size=18)
+
+p_test65AMG + geom_path(aes(x = mileage, y = y65AMGpred_knn20), color='orange')
+
+
+
+#KNN30
+knn30_550 = knn.reg(train = X_550_train, test = X_550_test, y = y_550_train, k = 30)
+knn30_65AMG = knn.reg(train = X_65AMG_train, test = X_65AMG_test, y = y_65AMG_train, k = 30)
+
+
+
+y550pred_knn30 = knn30_550$pred
+y65AMGpred_knn30 = knn30_65AMG$pred
+
+rmse(y_550_test, y550pred_knn30)
+rmse(y_65AMG_test, y65AMGpred_knn30)
+
+#Testing the fit
+
+D550_test$y550pred_knn30 = y550pred_knn30
+
+p_test550 = ggplot(data = D550_test) + 
+  geom_point(mapping = aes(x = mileage, y = price)) + 
+  theme_bw(base_size=18)
+
+p_test550 + geom_path(aes(x = mileage, y = y550pred_knn30), color='purple')
+
+
+
+D65AMG_test$y65AMGpred_knn30 = y65AMGpred_knn30
+
+p_test65AMG = ggplot(data = D65AMG_test) + 
+  geom_point(mapping = aes(x = mileage, y = price)) + 
+  theme_bw(base_size=18)
+
+p_test65AMG + geom_path(aes(x = mileage, y = y65AMGpred_knn30), color='purple')
+
+
+#KNN50
+knn50_550 = knn.reg(train = X_550_train, test = X_550_test, y = y_550_train, k = 50)
+knn50_65AMG = knn.reg(train = X_65AMG_train, test = X_65AMG_test, y = y_65AMG_train, k = 50)
+
+
+
+y550pred_knn50 = knn50_550$pred
+y65AMGpred_knn50 = knn50_65AMG$pred
+
+rmse(y_550_test, y550pred_knn50)
+rmse(y_65AMG_test, y65AMGpred_knn50)
+
+
+
+#Testing the fit
+
+D550_test$y550pred_knn50 = y550pred_knn50
+
+p_test550 = ggplot(data = D550_test) + 
+  geom_point(mapping = aes(x = mileage, y = price)) + 
+  theme_bw(base_size=18)
+
+p_test550 + geom_path(aes(x = mileage, y = y550pred_knn50), color='red')
+
+
+
+D65AMG_test$y65AMGpred_knn50 = y65AMGpred_knn50
+
+p_test65AMG = ggplot(data = D65AMG_test) + 
+  geom_point(mapping = aes(x = mileage, y = price)) + 
+  theme_bw(base_size=18)
+
+p_test65AMG + geom_path(aes(x = mileage, y = y65AMGpred_knn50), color='red')
+
+
+
+#550
+p_test550 + geom_path(aes(x = mileage, y = y550pred_knn50), color='red') +
+  geom_path(aes(x = mileage, y = y550pred_knn3), color='blue') +
+  geom_path(aes(x = mileage, y = y550pred_knn10), color='green') +
+  geom_path(aes(x = mileage, y = y550pred_knn20), color='orange') +
+  geom_path(aes(x = mileage, y = y550pred_knn30), color = 'purple')
+
+#65AMG
+p_test65AMG + geom_path(aes(x = mileage, y = y65AMGpred_knn50), color='red') +
+  geom_path(aes(x = mileage, y = y65AMGpred_knn3), color='blue') +
+  geom_path(aes(x = mileage, y = y65AMGpred_knn10), color='green') +
+  geom_path(aes(x = mileage, y = y65AMGpred_knn20), color='orange') +
+  geom_path(aes(x = mileage, y = y65AMGpred_knn30), color='purple')
+```
+
+I ran K-Nearest Neighbors for values of K equal to 3, 10, 20, 30, and 50. The optimum from these for the 550 trim was K equal to 50. The optimum for the 65AMG trim was K equal to 30. The 550 trim yields a larger optimum value of K because there were more observations in the data set and thus a larger value of K is optimal to create a more accurate non-parametric model. 
+
+The corresponding RMSE values are 10600.26 for 550 trim and 16049.87 for 65AMG trim. These values could be diminished but that accomodates a significant portion of the sample size we would be dealing with. For 550 trim, the K equal to 50 only accounts for about 12% of the data at any time to generate the model. For the 65AMG trim, the K equal to 30 accounts for about 10% of the data to generate the model.
+
+
+## Conclusion
+
+This assignment challenged me to think about what I was capable of doing with data. I was able to apply what we've done in class. I had a few things I wish that I knew how to do (create a heat map of all flights and the destinations around the world out of Austin. I was able to generate the map but couldn't quite figure out how to extend my coding to recognize locations of airports) but I am happy with what I was able to do and demonstrate.
+
