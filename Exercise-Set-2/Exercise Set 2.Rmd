@@ -1,0 +1,1039 @@
+---
+title: "Exercise Set 2"
+author: "Matthew Borelli & Isaac Hulsey & Tristan Robins"
+date: "3/6/2020"
+output: pdf_document
+---
+
+# Question 1
+
+```{r, include='FALSE'}
+library(tidyverse)
+library(mosaic)
+library(FNN)
+data(SaratogaHouses)
+```
+
+```{r, include='FALSE'}
+rmse = function(y, yhat) {
+  sqrt( mean( (y - yhat)^2 ) )
+}
+```
+
+```{r, include='FALSE'}
+rmsebase <- vector()
+horizon = 500
+for (x in 1:horizon) {
+n = nrow(SaratogaHouses)
+n_train = round(0.8*n)  # round to nearest integer
+n_test = n - n_train
+train_cases = sample.int(n, n_train, replace=FALSE)
+test_cases = setdiff(1:n, train_cases)
+saratoga_train = SaratogaHouses[train_cases,]
+saratoga_test = SaratogaHouses[test_cases,]
+lm_base = lm(price ~ lotSize + age + livingArea + pctCollege + bedrooms + 
+		fireplaces + bathrooms + rooms + heating + fuel + centralAir, data=saratoga_train)
+yhat_base = predict(lm_base, saratoga_test)
+rmsebase <- c(rmsebase,rmse(saratoga_test$price, yhat_base))
+}
+```
+
+## On average, the current model for predicting housing price is off by $`r format(mean(rmsebase), scientific=FALSE)`. This model is in desperate need of improvement.
+
+```{r, include='FALSE'}
+rmse = function(y, yhat) {
+  sqrt( mean( (y - yhat)^2 ) )
+}
+```
+
+## The first thing that comes to mind when looking at the current predictive model is to drop some of the variables. If highly correlatead values are in the regression, it will mess up the predictability of the model. 
+
+```{r, include='FALSE'}
+numeric <- vector()
+rmsebase <- vector()
+rmsecompetitor <- vector()
+improvement <- vector()
+horizon = 500
+for (x in 1:horizon) {
+n = nrow(SaratogaHouses)
+n_train = round(0.8*n)  # round to nearest integer
+n_test = n - n_train
+train_cases = sample.int(n, n_train, replace=FALSE)
+test_cases = setdiff(1:n, train_cases)
+saratoga_train = SaratogaHouses[train_cases,]
+saratoga_test = SaratogaHouses[test_cases,]
+lm_base = lm(price ~ lotSize + age + livingArea + pctCollege + bedrooms + 
+		fireplaces + bathrooms + rooms + heating + fuel + centralAir, data=saratoga_train)
+yhat_base = predict(lm_base, saratoga_test)
+rmsebase <- c(rmsebase,rmse(saratoga_test$price, yhat_base))
+lm_competitor2 = lm(price ~ lotSize + livingArea + pctCollege + bathrooms + bedrooms + rooms + fuel + centralAir, data=saratoga_train)
+yhat_competitor2 = predict(lm_competitor2, saratoga_test)
+rmsecompetitor <- c(rmsecompetitor,rmse(saratoga_test$price, yhat_competitor2))
+improvement <- c(improvement,((mean(rmsebase) - mean(rmsecompetitor))/mean(rmsebase))*100)
+numeric <- c(numeric,mean(rmsebase)-mean(rmsecompetitor))
+}
+```
+
+```{r, include='FALSE'}
+#Creating a  99% confidence interval
+leftbound = mean(improvement) - 2.58*sd(improvement)/sqrt(horizon)
+rightbound = mean(improvement) + 2.58*sd(improvement)/sqrt(horizon)
+leftbound
+rightbound
+```
+
+## By dropping age and fireplaces, we get a `r format(round(leftbound, digits=2), scientific=FALSE)`% to `r format(round(rightbound, digits=2), scientific=FALSE)`% increase in predictability power, or a prediction approximately $`r format(round(mean(numeric), digits=2), scientific=FALSE)` closer to the actual price on average, but we can do much better than this.   
+
+# Graphical Analysis
+
+## The next thing we want to do is look at trends in the data and see what improvements can be made by adding some variables to the model. 
+
+
+## First, we will look at how price of a house changes over the age of a house in years.
+
+```{r, include='FALSE'}
+priceage =ggplot(data = SaratogaHouses) + 
+  geom_point(mapping = aes(x = age, y = price)) +
+  labs(y= "Price", x = "Age")
+require(scales)
+```
+
+```{r, echo=FALSE}
+priceage + scale_y_continuous(labels = comma) + aes(x = age, y = price) + geom_smooth(method='lm') + labs(y= "Price", x = "Age")
+```
+
+
+
+
+## The concentration of the data for houses younger than 25, and the higher value for houses before 25 years seems to be creating a downwards bias in the Age variable. I am going to graph this again except censoring houses that are less than 25 years old.
+
+```{r, include='FALSE'}
+priceage =ggplot(data = SaratogaHouses) + 
+  geom_point(mapping = aes(x = age, y = price)) +
+  labs(y= "Price", x = "Age")
+require(scales)
+```
+
+```{r, echo=FALSE, warning=FALSE}
+priceage + scale_y_continuous(labels = comma) + aes(x = age, y = price) + geom_smooth(method='lm') + labs(y= "Price", x = "Age") +xlim(25,250)
+```
+
+```{r, include='FALSE'}
+#Rmarkdown for some reason merges the text below into the graph without this chunk ignore it.
+```
+
+## It looks like there is  a downward trend for Age right before a house being 25 years old. Kind of like a new house premium that dies off over time and later has no effect on housing prices.
+
+```{r, include='FALSE'}
+SaratogaHouses$new <- ifelse(SaratogaHouses$age < 25, 1, 0)
+newbox <- ggplot(SaratogaHouses, aes(x=new, y=price, group=new)) +
+  geom_boxplot() +
+  labs(y="Price", x = "New")
+require(scales)
+```
+```{r, echo=FALSE}
+newbox + scale_y_continuous(labels = comma)
+```
+
+## On average, houses that are 25 year of age or younger are worth roughly $25,000 more than houses that are older.
+
+
+## Oddly enough, new houses and a new construction aren not identical in the data, so we need to further transform the data.
+
+```{r, include='FALSE'}
+SaratogaHouses$justbuilt <- ifelse(SaratogaHouses$newConstruction == "Yes", 1, 0)
+```
+
+```{r, include='FALSE'}
+SaratogaHouses = mutate(SaratogaHouses, brandnew = justbuilt*new)
+```
+
+```{r, include='FALSE'}
+brandnewbox <- ggplot(SaratogaHouses, aes(x=brandnew, y=price, group=brandnew)) +
+  geom_boxplot() +
+  labs(y="Price", x = "Brand New")
+require(scales)
+```
+
+```{r, echo=FALSE}
+brandnewbox + scale_y_continuous(labels = comma)
+```
+
+## Brand New houses are denoted by 1 and not brand new houses are denoted by 0. The mean of brand new houses is higher by around $100,000 than non-brandnew houses. 
+
+
+## Now we will look at landvalue on price
+
+```{r, include='FALSE'}
+landValueScatter =ggplot(data = SaratogaHouses) + 
+  geom_point(mapping = aes(x = landValue, y = price)) +
+  labs(y= "Price", x = "Land Value")
+require(scales)
+```
+
+```{r, echo=FALSE, warning=FALSE}
+landValueScatter + scale_y_continuous(labels = comma) + xlim(0,150000) + aes(x = landValue, y = price) + geom_smooth(method='lm') + labs(y= "Price", x = "Land Value")
+```
+
+## There seems to be an upward relationship between land value and price. This is not being captured in the current predictive model.
+
+## We generally assume that waterfront properties have a positive effect on housing price, and that effect is not accounted for in the current model. We will now take a look at a boxplot and see if there is anything evidence behind waterfront adding value to a price of a house.
+
+```{r, include='FALSE'}
+waterbox <- ggplot(SaratogaHouses, aes(x=waterfront, y=price, group=waterfront)) +
+  geom_boxplot() +
+  labs(y="Price", x = "Waterfront")
+require(scales)
+```
+```{r, echo=FALSE}
+waterbox + scale_y_continuous(labels = comma)
+```
+
+## There is incredibly strong evidence that on average a waterfront property will have a higher price than a non-waterfront property. We will include this in our model.
+
+## One final thing that I am interested in looking at is the effect of miscellaneous rooms in house prices. So, I will generate a box plot to look at the possible relationship of an additional miscellaneous room on price.
+
+```{r, include='FALSE'}
+SaratogaHouses = mutate(SaratogaHouses, miscrooms = rooms - (bedrooms+bathrooms))
+miscbox <- ggplot(SaratogaHouses, aes(x=miscrooms, y=price, group=miscrooms)) +
+  geom_boxplot() +
+  labs(y="Price", x = "Miscellaneous Rooms")
+require(scales)
+```
+```{r, echo=FALSE, warning=FALSE}
+miscbox + scale_y_continuous(labels = comma) +xlim(-.3 ,7)
+```
+
+## There seems to be an upward trend in the presence of miscellaneous rooms and price. We will consider adding it to our model.
+
+
+# Model Testing
+
+## Now time to test some of these features out. First, we will add waterfront and land value to the new regression model we createad by dropping age and fireplaces as those were the most significant variables and see what sort of jump we see in power of prediction. 
+
+```{r, include='FALSE'}
+numeric <- vector()
+rmsebase <- vector()
+rmsecompetitor <- vector()
+improvement <- vector()
+horizon = 500
+for (x in 1:horizon) {
+n = nrow(SaratogaHouses)
+n_train = round(0.8*n)  # round to nearest integer
+n_test = n - n_train
+train_cases = sample.int(n, n_train, replace=FALSE)
+test_cases = setdiff(1:n, train_cases)
+saratoga_train = SaratogaHouses[train_cases,]
+saratoga_test = SaratogaHouses[test_cases,]
+lm_base = lm(price ~ lotSize + livingArea + pctCollege + bathrooms + bedrooms + rooms + fuel + centralAir, data=saratoga_train)
+yhat_base = predict(lm_base, saratoga_test)
+rmsebase <- c(rmsebase,rmse(saratoga_test$price, yhat_base))
+lm_competitor2 = lm(price ~ lotSize + livingArea + landValue + waterfront + pctCollege + bathrooms + bedrooms + rooms + fuel + centralAir, data=saratoga_train)
+yhat_competitor2 = predict(lm_competitor2, saratoga_test)
+rmsecompetitor <- c(rmsecompetitor,rmse(saratoga_test$price, yhat_competitor2))
+improvement <- c(improvement,((mean(rmsebase) - mean(rmsecompetitor))/mean(rmsebase))*100)
+numeric <- c(numeric,mean(rmsebase)-mean(rmsecompetitor))
+}
+leftbound = mean(improvement) - 2.58*sd(improvement)/sqrt(horizon)
+rightbound = mean(improvement) + 2.58*sd(improvement)/sqrt(horizon)
+```
+## We see a `r format(round(leftbound, digits=2), scientific=FALSE)`% to `r format(round(rightbound, digits=2), scientific=FALSE)`% increase in improvement by adding these two variables from the improved model. This corresponds to roughly a `r format(round(mean(numeric), digits=2), scientific=FALSE)`$ more accurate guess in the prediction on average. 
+
+
+## Using the model just generated as the base model, we will add the variable created for houses 25 years and younger and the variable created for newly constructed houses that were less than a year old at the time of pricing.
+
+
+```{r, include='FALSE'}
+numeric <- vector()
+rmsebase <- vector()
+rmsecompetitor <- vector()
+improvement <- vector()
+horizon = 500
+for (x in 1:horizon) {
+n = nrow(SaratogaHouses)
+n_train = round(0.8*n)  # round to nearest integer
+n_test = n - n_train
+train_cases = sample.int(n, n_train, replace=FALSE)
+test_cases = setdiff(1:n, train_cases)
+saratoga_train = SaratogaHouses[train_cases,]
+saratoga_test = SaratogaHouses[test_cases,]
+lm_base = lm(price ~ lotSize + livingArea + landValue + waterfront + pctCollege + bathrooms + bedrooms + rooms + fuel + centralAir, data=saratoga_train)
+yhat_base = predict(lm_base, saratoga_test)
+rmsebase <- c(rmsebase,rmse(saratoga_test$price, yhat_base))
+lm_competitor2 = lm(price ~ lotSize + new + brandnew + livingArea + landValue + waterfront + pctCollege + bathrooms + bedrooms + rooms + fuel + centralAir, data=saratoga_train)
+yhat_competitor2 = predict(lm_competitor2, saratoga_test)
+rmsecompetitor <- c(rmsecompetitor,rmse(saratoga_test$price, yhat_competitor2))
+improvement <- c(improvement,((mean(rmsebase) - mean(rmsecompetitor))/mean(rmsebase))*100)
+numeric <- c(numeric,mean(rmsebase)-mean(rmsecompetitor))
+}
+leftbound = mean(improvement) - 2.58*sd(improvement)/sqrt(horizon)
+rightbound = mean(improvement) + 2.58*sd(improvement)/sqrt(horizon)
+```
+
+## Adding those variables to measure the premium buyers pay for a newer house, we get a `r format(round(leftbound, digits=2), scientific=FALSE)`% to `r format(round(rightbound, digits=2), scientific=FALSE)`% increase in accuracy which corresponds to on average being $`r format(round(mean(numeric), digits=2), scientific=FALSE)` closer to the actual price.
+
+## For the final linear model, I will compare adding miscellaneous rooms to the model and a few interactions and compare it to the new base model.
+
+```{r, include='FALSE'}
+numeric <- vector()
+rmsebase <- vector()
+rmsecompetitor <- vector()
+improvement <- vector()
+horizon = 500
+for (x in 1:horizon) {
+n = nrow(SaratogaHouses)
+n_train = round(0.8*n)  # round to nearest integer
+n_test = n - n_train
+train_cases = sample.int(n, n_train, replace=FALSE)
+test_cases = setdiff(1:n, train_cases)
+saratoga_train = SaratogaHouses[train_cases,]
+saratoga_test = SaratogaHouses[test_cases,]
+lm_base = lm(price ~ lotSize + new + brandnew + livingArea + landValue + waterfront + pctCollege + bathrooms + bedrooms + rooms + fuel + centralAir, data=saratoga_train)
+yhat_base = predict(lm_base, saratoga_test)
+rmsebase <- c(rmsebase,rmse(saratoga_test$price, yhat_base))
+lm_competitor2 = lm(price ~  landValue + lotSize*age +centralAir + waterfront + lotSize + miscrooms+ bedrooms + bathrooms + pctCollege + livingArea + lotSize + brandnew + fuel +new*livingArea +livingArea*waterfront +pctCollege*landValue, data=saratoga_train)
+yhat_competitor2 = predict(lm_competitor2, saratoga_test)
+rmsecompetitor <- c(rmsecompetitor,rmse(saratoga_test$price, yhat_competitor2))
+improvement <- c(improvement,((mean(rmsebase) - mean(rmsecompetitor))/mean(rmsebase))*100)
+numeric <- c(numeric,mean(rmsebase)-mean(rmsecompetitor))
+}
+leftbound = mean(improvement) - 2.58*sd(improvement)/sqrt(horizon)
+rightbound = mean(improvement) + 2.58*sd(improvement)/sqrt(horizon)
+```
+
+## Adding miscellaneous rooms to the model and a few interactions, we get a `r format(round(leftbound, digits=2), scientific=FALSE)`% to `r format(round(rightbound, digits=2), scientific=FALSE)`% increase in accuracy which corresponds to on average being $`r format(round(mean(numeric), digits=2), scientific=FALSE)` closer to the actual price.
+
+```{r, include='FALSE'}
+numeric <- vector()
+rmsebase <- vector()
+rmsecompetitor <- vector()
+improvement <- vector()
+horizon = 500
+for (x in 1:horizon) {
+n = nrow(SaratogaHouses)
+n_train = round(0.8*n)  # round to nearest integer
+n_test = n - n_train
+train_cases = sample.int(n, n_train, replace=FALSE)
+test_cases = setdiff(1:n, train_cases)
+saratoga_train = SaratogaHouses[train_cases,]
+saratoga_test = SaratogaHouses[test_cases,]
+lm_base = lm(price ~ lotSize + age + livingArea + pctCollege + bedrooms + 
+		fireplaces + bathrooms + rooms + heating + fuel + centralAir, data=saratoga_train)
+yhat_base = predict(lm_base, saratoga_test)
+rmsebase <- c(rmsebase,rmse(saratoga_test$price, yhat_base))
+lm_competitor2 = lm(price ~  landValue + lotSize*age +centralAir + waterfront + lotSize + miscrooms+ bedrooms + bathrooms + pctCollege + livingArea + new + lotSize + brandnew + fuel +new*livingArea +livingArea*waterfront +pctCollege*landValue, data=saratoga_train)
+yhat_competitor2 = predict(lm_competitor2, saratoga_test)
+rmsecompetitor <- c(rmsecompetitor,rmse(saratoga_test$price, yhat_competitor2))
+improvement <- c(improvement,((mean(rmsebase) - mean(rmsecompetitor))/mean(rmsebase))*100)
+numeric <- c(numeric,mean(rmsebase)-mean(rmsecompetitor))
+}
+leftbound = mean(improvement) - 2.58*sd(improvement)/sqrt(horizon)
+rightbound = mean(improvement) + 2.58*sd(improvement)/sqrt(horizon)
+```
+
+## Looking at our final model and the original base model, we get a `r format(round(leftbound, digits=2), scientific=FALSE)`% to `r format(round(rightbound, digits=2), scientific=FALSE)`% increase in accuracy which corresponds to on average being $`r format(round(mean(numeric), digits=2), scientific=FALSE)` closer to the actual price.
+
+
+```{r, include='FALSE'}
+SaratogaHouses$waterfront <- ifelse(SaratogaHouses$waterfront == "Yes", 1, 0)
+SaratogaHouses$centralAir <- ifelse(SaratogaHouses$centralAir == "Yes", 1, 0)
+SaratogaHouses$slandvalue <- scale(SaratogaHouses$landValue)
+SaratogaHouses$slotSize <- scale(SaratogaHouses$lotSize)
+SaratogaHouses$swaterfront <- scale(SaratogaHouses$waterfront)
+SaratogaHouses$smiscrooms <- scale(SaratogaHouses$miscrooms)
+SaratogaHouses$sbedrooms <- scale(SaratogaHouses$bedrooms)
+SaratogaHouses$sbathrooms <- scale(SaratogaHouses$bathrooms)
+SaratogaHouses$spctCollege <- scale(SaratogaHouses$pctCollege)
+SaratogaHouses$snew <- scale(SaratogaHouses$new)
+SaratogaHouses$slivingArea <- scale(SaratogaHouses$livingArea)
+SaratogaHouses$sbrandnew <- scale(SaratogaHouses$brandnew)
+SaratogaHouses$sprice <- scale(SaratogaHouses$price)
+SaratogaHouses$scentralAir <- scale(SaratogaHouses$centralAir)
+scaled <- subset(SaratogaHouses, select=c("slandvalue", "slotSize", "swaterfront","smiscrooms","sbedrooms","sbathrooms","spctCollege","snew","slivingArea","sbrandnew","price"))
+```
+
+
+## Out of curiosity, we will see if we can make a nonparametric model that is better at predicting prices than the best model we generated above.
+```{r, include='FALSE'}
+X = dplyr::select(scaled, -price)
+y = scaled$price
+n = length(y)
+n_train = round(0.8*n)
+n_test = n - n_train
+train_ind = sample.int(n, n_train)
+X_train = X[train_ind,]
+X_test = X[-train_ind,]
+y_train = y[train_ind]
+y_test = y[-train_ind]
+rmse1 <- vector()
+horizon = 25
+for (x in 2:horizon) {
+  knn_model = knnmod = knn.reg(train = X_train, test = X_test, y = y_train, k=x)
+ypred_knnmod = knnmod$pred
+rmse1 <- c(rmse1,rmse(y_test, ypred_knnmod))
+}
+k <- vector()
+for (x in 2:horizon) {
+k <- c(k,x)
+}
+kgraph2 <- data.frame(k,rmse1)
+```
+
+```{r, echo=FALSE}
+#creating a graph of the kmeans on the test set
+kgraph = ggplot(data = kgraph2) + 
+  geom_point(mapping = aes(x = k, y = rmse1), color='lightgrey') + 
+  theme_bw(base_size=18)
+kgraph + geom_path(mapping = aes(x=k, y=rmse1), color='red', size=1.5) +
+  labs(y= "Out of sample RMSE", x = "K")
+```
+
+## The above graph shows the relationship between k which is what we use to fine tune this nonparametric model and RMSE which in this case is how far off on average the model is at predicting the house price in dollars. After running lots of these regressions, I found that on average k=10 is the best k for minimizing RMSE.
+
+```{r, include='FALSE'}
+rmse1 <- vector()
+rmse2 <- vector()
+rmse3 <- vector()
+rmse4 <- vector()
+rmse5 <- vector()
+rmse6 <- vector()
+rmse7 <- vector()
+rmse8 <- vector()
+rmse9 <- vector()
+rmse10 <- vector()
+rmse11 <- vector()
+rmse12 <- vector()
+rmse13 <- vector()
+rmse14 <- vector()
+rmse15 <- vector()
+rmse16 <- vector()
+rmse17 <- vector()
+rmse18 <- vector()
+rmse19 <- vector()
+horizon = 100
+for (x in 2:horizon) {
+  
+X = dplyr::select(scaled, -price)
+y = scaled$price
+n = length(y)
+n_train = round(0.8*n)
+n_test = n - n_train
+train_ind = sample.int(n, n_train)
+X_train = X[train_ind,]
+X_test = X[-train_ind,]
+y_train = y[train_ind]
+y_test = y[-train_ind]
+knn_model = knnmod1 = knn.reg(train = X_train, test = X_test, y = y_train, k=2)
+ypred_knnmod = knnmod1$pred
+rmse1 <- c(rmse1,rmse(y_test, ypred_knnmod))
+knn_model = knnmod2 = knn.reg(train = X_train, test = X_test, y = y_train, k=3)
+ypred_knnmod = knnmod2$pred
+rmse2 <- c(rmse2,rmse(y_test, ypred_knnmod))
+knn_model = knnmod3 = knn.reg(train = X_train, test = X_test, y = y_train, k=4)
+ypred_knnmod = knnmod3$pred
+rmse3 <- c(rmse3,rmse(y_test, ypred_knnmod))
+knn_model = knnmod4 = knn.reg(train = X_train, test = X_test, y = y_train, k=5)
+ypred_knnmod = knnmod4$pred
+rmse4 <- c(rmse4,rmse(y_test, ypred_knnmod))
+knn_model = knnmod5 = knn.reg(train = X_train, test = X_test, y = y_train, k=6)
+ypred_knnmod = knnmod5$pred
+rmse5 <- c(rmse5,rmse(y_test, ypred_knnmod))
+knn_model = knnmod6 = knn.reg(train = X_train, test = X_test, y = y_train, k=7)
+ypred_knnmod = knnmod6$pred
+rmse6 <- c(rmse6,rmse(y_test, ypred_knnmod))
+knn_model = knnmod7 = knn.reg(train = X_train, test = X_test, y = y_train, k=8)
+ypred_knnmod = knnmod7$pred
+rmse7 <- c(rmse7,rmse(y_test, ypred_knnmod))
+knn_model = knnmod8 = knn.reg(train = X_train, test = X_test, y = y_train, k=9)
+ypred_knnmod = knnmod8$pred
+rmse8 <- c(rmse8,rmse(y_test, ypred_knnmod))
+knn_model = knnmod9 = knn.reg(train = X_train, test = X_test, y = y_train, k=10)
+ypred_knnmod = knnmod9$pred
+rmse9 <- c(rmse9,rmse(y_test, ypred_knnmod))
+knn_model = knnmod10 = knn.reg(train = X_train, test = X_test, y = y_train, k=11)
+ypred_knnmod = knnmod10$pred
+rmse10 <- c(rmse10,rmse(y_test, ypred_knnmod))
+knn_model = knnmod11 = knn.reg(train = X_train, test = X_test, y = y_train, k=12)
+ypred_knnmod = knnmod11$pred
+rmse11 <- c(rmse1,rmse(y_test, ypred_knnmod))
+knn_model = knnmod12 = knn.reg(train = X_train, test = X_test, y = y_train, k=13)
+ypred_knnmod = knnmod12$pred
+rmse12 <- c(rmse12,rmse(y_test, ypred_knnmod))
+knn_model = knnmod13 = knn.reg(train = X_train, test = X_test, y = y_train, k=14)
+ypred_knnmod = knnmod13$pred
+rmse13 <- c(rmse13,rmse(y_test, ypred_knnmod))
+knn_model = knnmod14 = knn.reg(train = X_train, test = X_test, y = y_train, k=15)
+ypred_knnmod = knnmod14$pred
+rmse14 <- c(rmse14,rmse(y_test, ypred_knnmod))
+knn_model = knnmod15 = knn.reg(train = X_train, test = X_test, y = y_train, k=16)
+ypred_knnmod = knnmod15$pred
+rmse15 <- c(rmse15,rmse(y_test, ypred_knnmod))
+knn_model = knnmod16 = knn.reg(train = X_train, test = X_test, y = y_train, k=17)
+ypred_knnmod = knnmod16$pred
+rmse16 <- c(rmse16,rmse(y_test, ypred_knnmod))
+knn_model = knnmod17 = knn.reg(train = X_train, test = X_test, y = y_train, k=18)
+ypred_knnmod = knnmod17$pred
+rmse17 <- c(rmse17,rmse(y_test, ypred_knnmod))
+knn_model = knnmod18 = knn.reg(train = X_train, test = X_test, y = y_train, k=19)
+ypred_knnmod = knnmod18$pred
+rmse18 <- c(rmse18,rmse(y_test, ypred_knnmod))
+knn_model = knnmod19 = knn.reg(train = X_train, test = X_test, y = y_train, k=20)
+ypred_knnmod = knnmod19$pred
+rmse19 <- c(rmse19,rmse(y_test, ypred_knnmod))
+}
+mean(rmse1) 
+mean(rmse2) 
+mean(rmse3) 
+mean(rmse4) 
+mean(rmse5) 
+mean(rmse6) 
+mean(rmse7) 
+mean(rmse8) 
+mean(rmse9) 
+mean(rmse10) 
+mean(rmse11) 
+mean(rmse12) 
+mean(rmse13) 
+mean(rmse14) 
+mean(rmse15) 
+mean(rmse16) 
+mean(rmse17) 
+mean(rmse18) 
+mean(rmse19) 
+#running the mean on each rmse, we find that k=10 on average preforms the best
+```
+
+
+```{r, include='FALSE'}
+rmse1 <- vector()
+horizon = 500
+for (x in 2:horizon) {
+  
+X = dplyr::select(scaled, -price)
+y = scaled$price
+n = length(y)
+n_train = round(0.8*n)
+n_test = n - n_train
+train_ind = sample.int(n, n_train)
+X_train = X[train_ind,]
+X_test = X[-train_ind,]
+y_train = y[train_ind]
+y_test = y[-train_ind]
+knn_model = knnmod4 = knn.reg(train = X_train, test = X_test, y = y_train, k=10)
+ypred_knnmod = knnmod4$pred
+rmse4 <- c(rmse4,rmse(y_test, ypred_knnmod))
+}
+leftboundl = mean(rmsecompetitor) - 2.58*sd(rmsecompetitor)/sqrt(horizon)
+rightboundl = mean(rmsecompetitor) + 2.58*sd(rmsecompetitor)/sqrt(horizon)
+leftboundn = mean(rmse4) - 2.58*sd(rmse4)/sqrt(horizon)
+rightboundn = mean(rmse4) + 2.58*sd(rmse4)/sqrt(horizon)
+```
+
+# Conclusion
+
+## After running tests on both models, I found that the nonparametric model was on average $`r format(round(leftboundn, digits=2), scientific=FALSE)` to $`r format(round(rightboundn, digits=2), scientific=FALSE)` off while the linear model was $`r format(round(leftboundl, digits=2), scientific=FALSE)` to $`r format(round(rightboundl, digits=2), scientific=FALSE)` off. This shows that the best model that I created is still the linear model. While this is an improvement from the base model when I started this anlaysis, there is further room for improvement. If you wish to increase the accuracy of your tax estimations and keep your constituents happy, I strongly suggest collecting more data such as a neighborhood variable because collecting new data generally is the best way to improve model preformance.
+
+
+---------------------------------------------------------------------------------------------------------------------------
+
+# Question 2
+
+```{r data, include=FALSE}
+library(readr)
+library(ggplot2)
+library(dplyr)
+library(plyr)
+library(knitr)
+library(stargazer)
+brca <- read.csv("~/Documents/Master/Data Mining/brca.txt")
+```
+
+# A Hospital Audit
+
+## Introduction
+
+The main goal of this statistical analysis is to audit the performance of your radiologists for mammogram screenings. Each doctor wants to limit the amount of false positives and false negatives as much as possible, but mammograms are not perfect. Therefore, it is reasonable to not expect 100% accuracy from your radiologists. However, we can utilize statistical analyses in order to see how efficient the radiologists are at recalling patients. Using the data you provided, approximately 1000 mammogram screenings from five randomly selected radiologists, we want to examing two important questions for you:
+
+- Are some radiologists more clinically conservative than others in recalling patients, holding patient risk factors equal?
+- When the radiologists at this hospital interpret a mammogram to make a decision on whether to recall the patient, does the data suggest that they should be weighing some clinical risk factors more heavily than they currently are?
+
+## Conservative Radiologists
+
+The naive method for analyzing conservativeness amongst your radiologists would be to look at the raw recall rates. Radiologists with a higher than average recall rate would be considered "conservative". Below is a bar chart showing the raw recall rates for each of the radiologists in our sample.
+
+```{r initial, echo=FALSE}
+conserv = as.data.frame(xtabs(~ radiologist + recall, brca))
+radio_conserv = data.frame(Radiologist=levels(conserv$radiologist),
+                           stringsAsFactors = FALSE)
+for (i in 1:5) {
+  no_recall_raw = conserv[1, 3]
+  recall_raw = conserv[i + 5, 3]
+  radio_conserv[i, 2] = 100*(recall_raw)/(no_recall_raw + recall_raw)
+}
+colnames(radio_conserv)[2] <- "Recall_PCT"
+ggplot(data = radio_conserv, mapping = aes(x = Radiologist, y = Recall_PCT)) +
+  geom_col(position = "stack") +
+  labs(x = "", title = "Recall Percent by Radiologist") +
+  theme_bw()
+```
+
+Judging from this chart, we would say that radiologists 66 and 89 are more conservative in recalling patients than the other radiologists. However, this simple analysis overlooks an important nuance: Doctors might see different patients in systematic ways that affect their recall rates. The next step we took was to control for patient factors to see if any radiologists are  more conservative than others, holding all else fixed. The following is the results from a logit regression model with controls for breat cancer symptoms and breast density classification. All other controls in the data set given had no statistically significant effect on the probability of a recall. 
+
+```{r recall_regress, echo=FALSE}
+recall = glm(recall ~ radiologist + age + history + symptoms + menopause + density, data=brca, family=binomial)
+# Of the controls, only symptoms and density had significant effects on recall, adjust model
+recall_v2 = glm(recall ~ radiologist + symptoms + density, data=brca, family=binomial)
+stargazer(recall_v2, type="text")
+```
+
+The logit regression results do not show significant coefficients for any of the radiologists. To note, radiologist 13 is the omitted radiologist. We see no signficanct difference for any of the other radiologists other than radiologist 85, who has a positive (more conserv conservative) difference at the 10% level. It is possible that radiologists 34 and 85 are significantly different, but we can't really be certain that radiologist 34 is less conservative than the others. Overall, since we see that there aren't any radiologists in our sample that are significantally more conservative in recalling patients after using a logit model to hold risk factors constant.
+
+## Importance of Clinical Risk Factors
+
+Now, instead of analyzing what might affect the probability of a radiologist recalling a patient, we want to see what factors best predict the likelihood of a patient having breast cancer. To do this, we will use a few different classification methods in order to better understand what risk factors best predict the probability of breast cancer.
+
+### Null Models
+
+To start, we want to set a baseline that we can compare following models to. For our baseline, we use a null model which simply predicts the most likely answer for each observation.
+
+```{r null, echo = FALSE}
+table(Cancer = brca$cancer)
+```
+
+The null model, in this case predicting that each patient does not have cancer, has approximately a `r round(950/(950+37)*100, digits=2)`% accuracy rate, or equivalently a `r round(100 - (950/(950+37)*100), digits=2)`% error rate. These statistics will be one part of our benchmark levels for evaluating the performance of the classificaiton models we will use.
+
+We also want to look at the current performance of radiologists at your hospital, to see if the following statistical models would result in an improvement in recall accuracy.
+
+```{r baseline, echo = FALSE}
+baseline = table(Cancer = brca$cancer, Recall = brca$recall)
+baseline
+n = nrow(brca)
+```
+```{r inline, echo = FALSE}
+Accuracy = round(100*(sum(diag(baseline)/n)), digits = 2)
+Sensitivity = round(100*baseline[2,2] / (sum(baseline[2,])), digits=2)
+Specificity = round(100*(1 - (baseline[1,2] / sum(baseline[1,]))), digits = 2)
+PPV = round(100*(1 - (baseline[1, 2] / sum(baseline[, 2]))), digits = 2)
+```
+
+From this table, we can generate important medical statistics that will help us compare predictions from our model against the actual decisions of radiologists:
+
+- Accuracy = `r Accuracy`%
+- Sensitivity = `r Sensitivity`%
+- Specificity = `r Specificity`%
+- Positive Predictive Value = `r PPV`%
+
+All of these give important information about the recall process, therefore we will analyze all of them for each model. However, the most important your case is the sensitivity, as the consequences of missing a case of breast cancer are worse than incorrectly suspecting that someone does have breast cancer. We will look at all four of these values, but focus on the sensitivity of these models in order to limit the possibility of missing breast cancer patients.
+
+
+### Graphical Analysis
+
+Before deciding on a model, we want to graphically look at the relationships between the risk factors and breast cancer diagnoses. To do this, we will graph simple two-way scatter plots for the risk factors in question.
+
+```{r age_bar, echo = FALSE}
+age_cancer_setup = as.data.frame(table(Age = brca$age,  Cancer = brca$cancer))
+age_cancer = data.frame(Age=levels(age_cancer_setup$age),
+                           stringsAsFactors = FALSE)
+for (i in 1:4) {
+  age_cancer[i, 1] = age_cancer_setup[i, 1]
+  no_cancer = age_cancer_setup[i, 3]
+  cancer = age_cancer_setup[i + 4, 3]
+  age_cancer[i, 2] = 100*cancer/(no_cancer + cancer)
+}
+p0 = ggplot(data = age_cancer)
+p0 + geom_bar(stat = "identity", aes(x = V1, y = V2)) + 
+     labs(x = "Age Category", y = "Pct. Diagnosed", title = "Breast Cancer Diagnoses by Age Category") +
+     theme_bw()
+```
+
+There seems to be a positive trend with age, even though ages 60-69 are less likely to be diagnosed with breast cancer. Patients aged 70+ are almost twice as likely to be diagnosed with breast cancer than any other age category.
+
+```{r history_bar, echo = FALSE}
+history_cancer_setup = as.data.frame(table(History = brca$history,  Cancer = brca$cancer))
+history_cancer = data.frame(History=levels(history_cancer_setup$age),
+                           stringsAsFactors = FALSE)
+for (i in 1:2) {
+  history_cancer[i, 1] = history_cancer_setup[i, 1]
+  no_cancer = history_cancer_setup[i, 3]
+  cancer = history_cancer_setup[i + 2, 3]
+  history_cancer[i, 2] = cancer/(no_cancer + cancer)
+}
+p0 = ggplot(data = history_cancer)
+p0 + geom_bar(stat = "identity", aes(x = V1, y = 100 * V2)) + 
+     labs(x = "History of Breast Biopsy/Surgery", y = "Pct. Diagnosed", title="Percent of Breast Cancer Diagnoses by History of Breast Biopsy/Surgery") +
+     theme_bw()
+```
+
+Having a previous breast biopsy or surgery doesn't seem to have too much of an impact on future cancer diagnoses, as there is about a 1% difference in diagnosis rate.
+
+```{r symptoms_bar, echo = FALSE}
+symptoms_cancer_setup = as.data.frame(table(Symptoms = brca$symptoms,  Cancer = brca$cancer))
+symptoms_cancer = data.frame(Symptoms=levels(symptoms_cancer_setup$Symptoms),
+                           stringsAsFactors = FALSE)
+for (i in 1:2) {
+  symptoms_cancer[i, 1] = symptoms_cancer_setup[i, 1]
+  no_cancer = symptoms_cancer_setup[i, 3]
+  cancer = symptoms_cancer_setup[i + 2, 3]
+  symptoms_cancer[i, 2] = 100 * cancer/(no_cancer + cancer)
+}
+p0 = ggplot(data = symptoms_cancer)
+p0 + geom_bar(stat = "identity", aes(x = Symptoms, y = V2)) + 
+     labs(x = "Previous Symptoms", y = "Pct. Diagnosed", title="Percent of Breast Cancer Diagnoses by Previous Symptoms") + 
+     theme_bw()
+```
+
+People who have had previous symptoms (coded as 2 here) are diagnosed with breast cancer at a 2% higher rate. This difference might or might not be statistically significant.
+
+```{r menopause_bar, echo = FALSE}
+menopause_cancer_setup = as.data.frame(table(Menopause = brca$menopause,  Cancer = brca$cancer))
+menopause_cancer = data.frame(Menopause=levels(menopause_cancer_setup$menopause),
+                           stringsAsFactors = FALSE)
+for (i in 1:4) {
+  menopause_cancer[i, 1] = menopause_cancer_setup[i, 1]
+  no_cancer = menopause_cancer_setup[i, 3]
+  cancer = menopause_cancer_setup[i + 4, 3]
+  menopause_cancer[i, 2] = 100*cancer/(no_cancer + cancer)
+}
+p0 = ggplot(data = menopause_cancer)
+p0 + geom_bar(stat = "identity", aes(x = V1, y = V2)) + 
+     labs(x = "Menopause Status", y = "Pct. Diagnosed", title="Percent of Breast Cancer Diagnoses by Menopause Status") + 
+     theme_bw()
+```
+
+Most of the classifications for menopause status are the same, but people who are post menopausal with unknown hormone treatment seem to have a significantly higher diagnosis rate.
+
+```{r density_bar, echo = FALSE}
+density_cancer_setup = as.data.frame(table(Density = brca$density,  Cancer = brca$cancer))
+density_cancer = data.frame(Density=levels(density_cancer_setup$density),
+                           stringsAsFactors = FALSE)
+for (i in 1:4) {
+  density_cancer[i, 1] = density_cancer_setup[i, 1]
+  no_cancer = density_cancer_setup[i, 3]
+  cancer = density_cancer_setup[i + 4, 3]
+  density_cancer[i, 2] = 100*cancer/(no_cancer + cancer)
+}
+p0 = ggplot(data = density_cancer)
+p0 + geom_bar(stat = "identity", aes(x = V1, y = V2)) + 
+     labs(x = "Breast Density Classification", y = "Pct. Diagnosed", title="Percent of Breast Cancer Diagnoses by Breast Density Classification") +
+     theme_bw()
+```
+
+People classified as Breast Density 4 (Extremely Dense) seem to have a significantly higher diagnosis rate. On the other hand, people classified as Breast Density 1 (Almost Entirely Fatty) look to have a much lower rate of breast cancer diagnoses.
+
+### Importance of Risk Factors
+
+There are two general ways to model classification problems: Linear Probability models (LPM), and K-Nearest Neighbors (KNN). Due to the relative lack of cancer diagnoses and because all of the risk factors are categorical, it makes the most sense to use a LPM instead of a KNN. If given a larger sample of the data, KNN could be a more viable option for modelling breast cancer probabilities.
+
+To start, we will look at the linear probability model with all of the risk factors and no interactions between them. To note, we will use a 5% threshold for the limit at which a doctor should recall a patient for further testing.
+
+```{r base_model, echo = FALSE}
+base_glm = glm(cancer ~ age + history + symptoms + menopause + density, data=brca, family = binomial)
+phat_test_logit_basecancer = predict(base_glm, brca, type='response')
+yhat_test_logit_basecancer = ifelse(phat_test_logit_basecancer > 0.05, 1, 0)
+confusion_base = table(y = brca$cancer, yhat = yhat_test_logit_basecancer)
+confusion_base
+```
+```{r inline_base, echo = FALSE}
+Accuracy_base = round(100*(sum(diag(confusion_base)/n)), digits = 2)
+Sensitivity_base = round(100*confusion_base[2,2] / (sum(confusion_base[2,])), digits=2)
+Specificity_base = round(100*(1 - (confusion_base[1,2] / sum(confusion_base[1,]))), digits = 2)
+PPV_base = round(100*(1 - (confusion_base[1, 2] / sum(confusion_base[, 2]))), digits = 2)
+```
+
+- Accuracy = `r Accuracy_base`%
+- Sensitivity = `r Sensitivity_base`%
+- Specificity = `r Specificity_base`%
+- Positive Predictive Value = `r PPV_base`%
+
+Our base model has less accuracy, sensitivity, specificity, and positive predictive value than what we currently observe from radiologists. To try and improve the model, we take the two statistically significant variables from the base model, age and density, and create a new LPM to see if we improve any of our measures.
+
+```{r reduced_model, echo = FALSE}
+reduced_glm = glm(cancer ~ age + density, data=brca, family = binomial)
+phat_test_logit_reducedcancer = predict(reduced_glm, brca, type='response')
+yhat_test_logit_reducedcancer = ifelse(phat_test_logit_reducedcancer > 0.05, 1, 0)
+confusion_reduced = table(y = brca$cancer, yhat = yhat_test_logit_reducedcancer)
+confusion_reduced
+```
+```{r inline_reduced, echo = FALSE}
+Accuracy_reduced = round(100*(sum(diag(confusion_reduced)/n)), digits = 2)
+Sensitivity_reduced = round(100*confusion_reduced[2,2] / (sum(confusion_reduced[2,])), digits=2)
+Specificity_reduced = round(100*(1 - (confusion_reduced[1,2] / sum(confusion_reduced[1,]))), digits = 2)
+PPV_reduced = round(100*(1 - (confusion_reduced[1, 2] / sum(confusion_reduced[, 2]))), digits = 2)
+```
+
+- Accuracy = `r Accuracy_reduced`%
+- Sensitivity = `r Sensitivity_reduced`%
+- Specificity = `r Specificity_reduced`%
+- Positive Predictive Value = `r PPV_reduced`%
+
+This reduced model is even lower in our measures of concern, indicating that we need to consider different models. Particularly, we want to look at interactions between the risk factors, as having multiple high-probability risk factors could be a better indication of the likelihood of a breast cancer diagnosis. For the selection, we will add the recall binary variable to control for potential unobservables that doctors are selecting on when deciding who should be recalled. If there's something that the radiologists are not factoring in, we would expect to see some of the risk factors still exhibit statistical significance since it would improve the decision making process for the radiologists. 
+
+```{r selection, include = FALSE}
+cancer_step = step(base_glm, 
+			scope=~(. + recall + history + symptoms + menopause)^3)
+final_glm = glm(cancer ~ age + density + recall, data=brca, family = binomial)
+```
+```{r stargazer_final, echo = FALSE}
+stargazer(final_glm, type="text")
+```
+Our final model was the same as the reduced model with the addition of the information on whether a doctor recalled a patient or not. We see that people ages 70+ and people classified with extremely dense breasts have a significant positive relationship with cancer diagnoses, even after controlling for the actual recall decision. This means that if radiologists took more consideration for those two classifications of risk factors, they would likely be more efficient at recalling patients. To show this, we look at one more confusion matrix of predicted probabilities of recalling patients vs their actual diagnosis rates.
+
+```{r final_model, echo = FALSE}
+phat_test_logit_finalcancer = predict(final_glm, brca, type='response')
+yhat_test_logit_finalcancer = ifelse(phat_test_logit_finalcancer > 0.05, 1, 0)
+confusion_final = table(y = brca$cancer, yhat = yhat_test_logit_finalcancer)
+confusion_final
+```
+```{r inline_final, echo = FALSE}
+Accuracy_final = round(100*(sum(diag(confusion_final)/n)), digits = 2)
+Sensitivity_final = round(100*confusion_final[2,2] / (sum(confusion_final[2,])), digits=2)
+Specificity_final = round(100*(1 - (confusion_final[1,2] / sum(confusion_final[1,]))), digits = 2)
+PPV_final = round(100*(1 - (confusion_final[1, 2] / sum(confusion_final[, 2]))), digits = 2)
+```
+
+- Accuracy = `r Accuracy_final`%
+- Sensitivity = `r Sensitivity_final`%
+- Specificity = `r Specificity_final`%
+- Positive Predictive Value = `r PPV_final`%
+
+This final model improves on 3 of our 4 metrics, with specificity being slightly lowered. For sensitivity, which we care about the most, we have a lift of `r round((Sensitivity_final / Sensitivity), digits = 2)`. Therefore, we recommend that radiologists take act more aggressively in recalling patients over the age of 70 and/or patients with extremely dense breast classifications in order to improve the sensitivity of mammogram testing.
+
+## Conclusion
+
+Our audit had two focuses: Evaulating the conservativeness of radiologists in recalling patients, and examining risk factors that might be underaccounted in a radiologist's decision to recall. Our analyses did not show and significant evidence that any of the radiologists were more conservative in issuing recalls. At worst, there are two radiologists who are different at a 10% level, but neither is significantly different than the average in our sample. In this regard, we can say that your radiologists are performing well and you don't particularly need to encourage any behavior change. 
+
+We did see that there were some risk factors that weren't being appropriately accounted for in a radiologist's decision on whether to recall a patient or not. In particular, the category of patients above age 70 are more likely to be diagnosed with cancer, holding all else fixed. As well, patients with the breast density classification of "Extremely Dense" are also significantly more likely to be diagnosed with cancer, holding all else fixed. We want to make sure that radiologists still make recall decisions with the same general process, since there might be unobservable reasons that inform their decisions. Therefore, we suggest that radiologists at your hospital should be more conservative in recalling patients who are 70 and older and/or are fit the breast density classification of "Extremely Dense", while otherwise considering their recall decisions in the same way.
+
+
+---------------------------------------------------------------------------------------------------------------------------
+
+# Question 3
+
+## Predicting how many shares a given article will receive
+
+In order to explian how many shares an article would receive, 100 linear models were conducted using training and testing sets to measure effectiveness.
+```{r shares library establish, warning = FALSE, message = FALSE, echo = FALSE}
+library(tidyverse)
+library(mosaic)
+library(class)
+library(glm2)
+online_news <- read.csv("~/Documents/Master/Data Mining/online_news.csv")
+online_news$viral <- ifelse(online_news$shares > 1400, 1, 0)
+```
+
+```{r shares, warning = FALSE, message = FALSE, echo = FALSE}
+i <- 1:100
+x <- 1
+
+diag_shares_in <- 0 
+diag_shares_out <- 0
+total_shares_in <- 0
+total_shares_out <- 0
+
+confusion_in_shares <- c(0, 0)
+confusion_out_shares <- c(0, 0)
+
+for (x in i) {
+  n = nrow(online_news)
+  n_train = round(0.8 * n)
+  n_test = n - n_train
+  train_cases = sample.int(n, n_train, replace=FALSE)
+  test_cases = setdiff(1:n, train_cases)
+  shares_train = online_news[train_cases,]
+  shares_test = online_news[test_cases,]
+  
+  lm_shares = lm(shares ~ num_imgs + num_keywords + self_reference_avg_sharess +
+                   weekday_is_tuesday + weekday_is_wednesday +
+                   weekday_is_thursday + weekday_is_friday +
+                   weekday_is_saturday + weekday_is_sunday +
+                   title_subjectivity + title_sentiment_polarity +
+                   global_rate_positive_words + global_rate_negative_words +
+                   num_hrefs + n_tokens_title + n_tokens_content + num_videos +
+                   data_channel_is_lifestyle + data_channel_is_entertainment + data_channel_is_bus +
+                   data_channel_is_socmed + data_channel_is_world, data = shares_train)
+  
+  phat_train_shares = predict(lm_shares, shares_train)
+  yhat_train_shares = ifelse(phat_train_shares > 1400, 1, 0)
+  in_shares = table(y = shares_train$viral, yhat = yhat_train_shares)
+  confusion_in_shares = confusion_in_shares + in_shares
+  
+  diag_shares_in = diag_shares_in + sum(diag(confusion_in_shares))
+  total_shares_in = total_shares_in + sum(confusion_in_shares)
+  
+  
+  phat_test_shares = predict(lm_shares, shares_test)
+  yhat_test_shares = ifelse(phat_test_shares > 1400, 1, 0)
+  out_shares = table(y = shares_test$viral, yhat = yhat_test_shares)
+  confusion_out_shares = confusion_out_shares + out_shares
+  
+  diag_shares_out = diag_shares_out + sum(diag(confusion_out_shares))
+  total_shares_out = total_shares_out + sum(confusion_out_shares)
+
+  x = x+1 
+}
+
+```
+
+The main findings of the results of the 100 linear models for the number of shares an article received were:
+
+#### Confusion Matrices
+In sample:
+```{r, echo = FALSE}
+avg_confusion_in_shares = confusion_in_shares / 100
+avg_confusion_in_shares
+```
+Out of sample:
+```{r, echo = FALSE}
+avg_confusion_out_shares = confusion_out_shares / 100
+avg_confusion_out_shares
+```
+
+#### True Positive Rate
+```{r, echo = FALSE}
+tpr_shares = avg_confusion_out_shares["1", "1"] / (avg_confusion_out_shares["1", "1"] + avg_confusion_out_shares["1", "0"])
+tpr_shares
+```
+
+#### False Positive Rate and Specificity
+False positive rate:
+```{r, echo = FALSE}
+fpr_shares = avg_confusion_out_shares["0", "1"] / (avg_confusion_out_shares["0", "1"] + avg_confusion_out_shares["0", "0"])
+fpr_shares
+```
+Specificity:
+```{r, echo = FALSE}
+specificity_shares = 1 - fpr_shares
+specificity_shares
+```
+
+#### False Discovery Rate and Precision
+False discovery rate:
+```{r, echo = FALSE}
+fdr_shares = avg_confusion_out_shares["0", "1"] / (avg_confusion_out_shares["1", "1"] + avg_confusion_out_shares["0", "1"])
+fdr_shares
+```
+Precision:
+```{r, echo = FALSE}
+precision_shares = 1 - fdr_shares
+precision_shares
+```
+
+We see that this model has only 1% specificity but has 50% precision. This means that the model predicts many false positives but remains semi-stable in modeling the data. Ideally, specificity should be higher in predicting the outcome.
+
+
+## Prediciting if an article will go viral
+
+To discern whether an article would go viral, a linear probability model was constructed based on the definition of 'viral' as being whether an article received more than 1400 shares. Again, 100 of these models were constructed using training and testing sets.
+```{r viral library establish, warning= FALSE, message= FALSE, echo = FALSE}
+library(tidyverse)
+library(mosaic)
+library(class)
+library(glm2)
+online_news <- read.csv("~/Documents/Master/Data Mining/online_news.csv")
+online_news$viral <- ifelse(online_news$shares > 1400, 1, 0)
+```
+
+```{r viral, warning = FALSE, message = FALSE, echo = FALSE}
+i <- 1:100
+y <- 1
+
+diag_viral_in <- 0
+diag_viral_out <- 0
+total_viral_in <- 0
+total_viral_out <- 0
+
+confusion_in_viral <- c(0, 0)
+confusion_out_viral <- c(0, 0)
+
+for (y in i) {
+  n = nrow(online_news)
+  n_train = round(0.8 * n)
+  n_test = n - n_train
+  train_cases = sample.int(n, n_train, replace=FALSE)
+  test_cases = setdiff(1:n, train_cases)
+  viral_train = online_news[train_cases,]
+  viral_test = online_news[test_cases,]
+  
+  lpm_viral = glm(viral ~ num_imgs + num_keywords + self_reference_avg_sharess +
+                   weekday_is_tuesday + weekday_is_wednesday +
+                   weekday_is_thursday + weekday_is_friday +
+                   weekday_is_saturday + weekday_is_sunday +
+                   title_subjectivity + title_sentiment_polarity +
+                   global_rate_positive_words + global_rate_negative_words +
+                   num_hrefs + n_tokens_title + n_tokens_content + num_videos +
+                   data_channel_is_lifestyle + data_channel_is_entertainment + data_channel_is_bus +
+                   data_channel_is_socmed + data_channel_is_world, data = viral_train)
+  
+  phat_train_viral = predict(lpm_viral, viral_train)
+  yhat_train_viral = ifelse(phat_train_viral > .5, 1, 0)
+  in_viral = table(y = viral_train$viral, yhat = yhat_train_viral)
+  confusion_in_viral = confusion_in_viral + in_viral
+  
+  diag_viral_in = diag_viral_in + sum(diag(confusion_in_viral))
+  total_viral_in = total_viral_in + sum(confusion_in_viral)
+  
+  
+  phat_test_viral = predict(lpm_viral, viral_test)
+  yhat_test_viral = ifelse(phat_test_viral > median(phat_test_viral), 1, 0)
+  out_viral = table(y = viral_test$viral, yhat = yhat_test_viral)
+  confusion_out_viral = confusion_out_viral + out_viral
+  
+  diag_viral_out = diag_viral_out + sum(diag(confusion_out_viral))
+  total_viral_out = total_viral_out + sum(confusion_out_viral)
+  
+  y = y+1 
+}
+```
+
+The main findings of the results of the 100 linear probability models for whether an article went viral were:
+
+#### Confusion Matrices
+In sample:
+```{r, echo = FALSE}
+avg_confusion_in_viral = confusion_in_viral / 100
+avg_confusion_in_viral
+```
+Out of sample:
+```{r, echo = FALSE}
+avg_confusion_out_viral = confusion_out_viral / 100
+avg_confusion_out_viral
+```
+
+#### True Positive Rate
+```{r, echo = FALSE}
+tpr_viral = avg_confusion_out_viral["1", "1"] / (avg_confusion_out_viral["1", "1"] + avg_confusion_out_viral["1", "0"])
+tpr_viral
+```
+
+#### False Positive Rate and Specificity
+False positive rate:
+```{r, echo = FALSE}
+fpr_viral = avg_confusion_out_viral["0", "1"] / (avg_confusion_out_viral["0", "1"] + avg_confusion_out_viral["0", "0"])
+fpr_viral
+```
+Specificity:
+```{r, echo = FALSE}
+specificity_viral = 1 - fpr_viral
+specificity_viral
+```
+
+#### False Discovery Rate and Precision
+False discovery rate:
+```{r, echo = FALSE}
+fdr_viral = avg_confusion_out_viral["0", "1"] / (avg_confusion_out_viral["1", "1"] + avg_confusion_out_viral["0", "1"])
+fdr_viral
+```
+Precision:
+```{r, echo = FALSE}
+precision_viral = 1 - fdr_viral
+precision_viral
+```
+
+Compared to the shares model, specificity has increased drastically. It still predicts some false positives (as will any model since no model is perfect) but predicts far fewer. Additionally, the viral model has higher predicitive power at approximately 62%. This is definite improvement in the model.
+
+### Discussion of results
+Overall, it is clear that the linear probability model on the likelihood of an article going viral performed significantly better than the linear model of accounting for shares. This is becasue the linear model accounted for any article receiving more than 1400 shares, which happened quite often in the predicted values from the data we used; on the other hand, the linear probability model only had to account for the likelihood that an article would go viral which meant over 50% which happened significantly less, and thus the predicted values were split between, allowing for an accurate representation of how likely an article would go viral. Further, given the metrics of specificity and precision in these models, the linear probability model outperforms the linear model on both accounts. It predicts fewer false positives and also predicts more truly positive outcomes. 
+
+As such, it is clear that creating a threshold first and then regressing is the better way to go about this because we are able to create a binary variable and predict likelihood of that binary variable occurring rather than having to predict the whether the metric of interest will surpass a particular threshold.
+
+
