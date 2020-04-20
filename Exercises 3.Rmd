@@ -1,0 +1,216 @@
+---
+title: "Exercises 3"
+author: "Isaac Hulsey (idh285) & Tristan Robins (tjr2695)"
+date: "4/20/2020"
+output: pdf_document
+---
+# Exercises 3
+## Question 1: Predictive Model Building
+
+```{r, include = 'FALSE'}
+library(tidyverse)
+library(ggplot2)
+library(mosaic)
+library(gamlr)
+library(tree)
+library(randomForest)
+library(rpart)
+
+greenbuildings <- read.csv("~/Documents/Master/Prob & Stats/HW/greenbuildings.csv")
+
+```
+
+```{r predictive, echo = FALSE}
+n = nrow(greenbuildings)
+n_train = round(0.8*n)  # round to nearest integer
+n_test = n - n_train
+train_cases = sample.int(n, n_train, replace=FALSE)
+test_cases = setdiff(1:n, train_cases)
+green_train = greenbuildings[train_cases,]
+green_test = greenbuildings[test_cases,]
+
+greentree = rpart(Rent ~ ., method="anova", data=green_train,
+                 control=rpart.control(minsplit=3, cp=1e-6, xval=20))
+ngreen = length(unique(greentree$where))
+ngreen
+
+best = greentree$cptable[1000,'CP']
+
+prunedtree = prune(greentree, cp=best)
+length(unique(prunedtree$where))
+plot(prunedtree)
+```
+```{r, echo = FALSE}
+plot(predict(prunedtree), green_train$Rent)
+yhat_test_tree = predict(prunedtree, green_test)
+
+lm_starter = lm(Rent ~ size + stories + age + renovated + green_rating +
+                  class_a + class_b + amenities, data=green_train)
+yhat_test_lms = predict(lm_starter, green_test)
+```
+```{r RMSE}
+mean((yhat_test_lms - green_test$Rent)^2) %>% sqrt
+mean((yhat_test_tree - green_test$Rent)^2) %>% sqrt
+```
+### In this problem, we are addressing the best outcome of predicting rental price charged to tenants of a buildings based off various factors defined in the dataset.
+
+### To accomplish this task, a tree model was utilized (rather than a simple linear model). The outcome of RMSE suggests the tree model was the better model compared to the linear model, given the reduction. This tree model incorporated the best 1000 branches of the tree (which cut the total number of branches by over 50%). The linear model predicted rent price using key distinguishing qualities of a building rather clustering qualities.
+
+### Clearly, the tree model was better able to address the fit of rental price charged to the tenant. But how can we find the average change in renatal price per square foot, holding all else fixed?
+
+```{r, echo = FALSE}
+plot(green_train$size, predict(prunedtree))
+```
+### This is able to be partially answered by the graph above. We see that when square footage increases in these buildings by approximately 1 million square feet, we only see an uptick in rental price charged per tenant of about $25.
+
+## Question 2: What Causes What?
+
+### Why you can't just regress "crime" on "police" to get a causal effect of police presence on crime:
+
+#### If you simply regress crime on police you miss out on a larger story that might be going on. For instance, maybe a city has deployed more police simply because there is a crime wave, and as a result, you would see a positive "casual" effect if this scenario was seen time-and-time again in the data. It wouldn't be a causal effect of police presence on crime, but, rather, it would be a measurement of how crime effects police presence.
+
+### How did researchers from UPenn isolate a causal effect between police presence and crime, and why did they include metro data?
+
+#### The researchers at UPenn noticed that on "high alert" days for terroism in Washintgon DC there is a spike in police officers present."High alert" days are random in the context that they have no correlation with any underlying crime waves. By including a "high alert" dummy variable, the researchers were able to get closer to a causal effect than just regressing crime on police. The researchers noticed that there in fact was a decrease in crime on "high alert" days which indicates that police officers have a negative effect (they decrease) crime levels. However, the researchers at UPenn thought of an issue with the model. Perhaps on "high alert" days in DC, there's less travel going on and people are staying at home. To account for this, the researcher's factored in metro data, and with the inclusion of the data, they noticed that the causal effect of police officers was still negative but a little weaker than before. By combining these two features into their regression, the researchers at UPenn were able to establish a good case for the causal effect of police officers on crime levels.
+
+### Capturing geographical effects:
+
+#### I do want to start off with a concern. The table doesn't make it very clear what district is being left out of the data in order to allow for proper interpretation of the causal effect. With that concern being clear and understanding that my interpretation is flawed due to the lack of clarification, it seems that district one has a much higher reduction in crime than the surrounding districts. In fact, the other distrcits don't have a statistically significant negative effect.
+
+
+## Question 3: PCA and Clustering
+```{r, include = 'FALSE'}
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+library(foreach)
+library(mosaic)
+library(LICORS)
+
+wine <- read.csv("~/Documents/wine.csv.txt")
+```
+```{r wine, echo = FALSE}
+red <- c("red"=1, "white"=0)
+white <- c("red"=0, "white"=1)
+wine$red <- red[wine$color]
+wine$white <- white[wine$color]
+wine_results = wine %>%
+  group_by(quality) %>%
+  select(-color) %>%
+  summarize_all(mean) %>%
+  column_to_rownames(var="quality")
+
+
+PCAwine = prcomp(wine_results, scale=TRUE)
+
+plot(PCAwine)
+summary(PCAwine)
+
+round(PCAwine$rotation[,1:7],2)
+
+wine2 = merge(wine_results, PCAwine$x, by = "row.names")
+wine2 = rename(wine2, quality = Row.names)
+
+ggplot(wine2) +
+  geom_text(aes(x=PC1, y=PC4, label = quality), size =3)
+ggplot(wine2) +
+  geom_text(aes(x=PC1, y=PC5, label = quality), size =3)
+ggplot(wine2) +
+  geom_text(aes(x=PC1, y=PC6, label = quality), size =3)
+ggplot(wine2) +
+  geom_text(aes(x=PC2, y=PC5, label = quality), size =3)
+ggplot(wine2) +
+  geom_text(aes(x=PC5, y=PC6, label = quality), size =3)
+ggplot(wine2) +
+  geom_text(aes(x=PC5, y=PC7, label = quality), size =3)
+ggplot(wine2) +
+  geom_text(aes(x=PC6, y=PC7, label = quality), size =3)
+```
+### In this problem, we are trying to address how to distinguish between different qualities of wines.
+
+### To do this, PCA was conducted by grouping on quality and examining the relationships between each of the PC's presented in the data. 
+
+### Only the best PC graphs were included but, when combined, suggest an ability to strongly distinguish between the quality of wine presented in the data.
+
+```{r colorPCA, echo = FALSE}
+wine_color = wine %>%
+  group_by(red) %>%
+  select(-color) %>%
+  summarize_all(mean) %>%
+  column_to_rownames(var="red")
+PCAwine_color = prcomp(wine_color, scale=TRUE)
+
+plot(PCAwine_color)
+summary(PCAwine_color)
+
+round(PCAwine_color$rotation[,1:2],2)
+
+wine4 = merge(wine_color, PCAwine_color$x, by = "row.names")
+wine4 = rename(wine4, red = Row.names)
+
+ggplot(wine4) + 
+  geom_text(aes(x=PC1, y=PC2, label = red), size=3)
+```
+
+```{r colorcluster, echo = FALSE}
+###### Color clustering
+X = wine[,-(12:15)]
+X = scale(X, center=TRUE, scale=TRUE)
+
+mu = attr(X,"scaled:center")
+sigma = attr(X,"scaled:scale")
+
+clust1 = kmeans(X, 2, nstart=50)
+
+qplot(color, total.sulfur.dioxide, data=wine, color=factor(clust1$cluster))
+
+```
+### For this problem, we were tasked to sort on color as well.
+
+### To do this, both a PCA graph of the distinctions between red and white wine, and a clustering algorithm of 50 starts were conducted to group.
+
+### The PC graph suggests that we can group based on PC's wherein 1 signifies red wine, while 0 signifies white wine. The PC graph suggests that it is possible to sort. Further, the clustering algorithm, although it undoubtedly will contain errors, due to some of the traits of white and red wines overlapping at times,
+shows a high degree of ability to cluster on color, given the 11 chemical properites of the wine that were assessed in the dataset.
+
+# Question 4: Market Segmentation
+
+``` {r segmentation, include = 'FALSE'}
+social_marketing <- read.csv("~/Documents/social_marketing.txt")
+train = read.csv("~/Documents/social_marketing.txt")
+mydata <- train[-c(1)]
+
+```
+
+## This data set has a good bit of categories. To reduce the feature size and to get an idea of where the market is concentrated, I am going to run a principal component analysis and see what the correlation with the data is with five pricncipal components.
+
+``` {r, include = 'FALSE'}
+mydata.pca <- prcomp(mydata[,c(1:5)], center = TRUE,scale. = TRUE)
+
+```
+
+``` {r, echo= FALSE}
+summary(mydata.pca)
+
+```
+
+
+```{r, echo=FALSE}
+mydata.pca$rotation
+```
+
+# From the first principal component, it looks like NutrientH20's most important categories are chatter, current events, travel, photo sharing, and uncategorized. From the correlation table, chatter and photo sharing are incredibly close to each other when it comes to correlation with the first principal component. The first principal component accounts for about a third of the variance. From this information, it appeares the bulk of NutrientH20's followers are split amongst people who like taking photos and just chatting.
+
+# The second principal component which accounts for an additional fifth of the variance in NutrientH20's followers shows a high correlation with travel. This shares a negative correlation with chatter and photo sharing; I feel like travel detracts from photo sharing and chatter because people who normally just would chatter or share photos might be talking a lot about a vacation they just had or sharing pictures of that vacation. Maybe these people are the more affluent of NutrientH20's followers.
+
+# The third principal component accounts for roughly a fifth of the variance as well, and it is highly correlated with uncategorized. This is negatively correlated with everything except for photo sharing (which is near zero) and uncategorized. A theory I have is these are "meme" accounts because a "meme" category isn't anywhere in the data, and most "meme pages" don't typically chat with their followers or talk about current events or mention their travel plans, but they do post funny photos which might explain the slight correlation with photo sharing.
+
+# The fourth principal component accounts for a little less than a fifth of the variance, and it is most strongly correlated with current events. my hypothesis is that this is picking up on something to do with more political users, and maybe even a certain political party. This component is negatively correlated with travel, photo sharing, and chatter which makes me think that these followers don't post much about their personal lives and are more of a sort of activist type of poster.
+
+# The fifth principal component acounts for the roughly remaining tenth of the variance in the data. It is roughly correlated to the same extent but in different magnitudes to both photo sharing and chatter. Photo sharing is the positive correlation and chatter being the negative. This would be a sort of instagramer who would be posting on twitter.
+
+# Taking all of this into consideration here would be my recommendation of what NutreientH20's market looks like in five categoires. People who don't travel a lot but are somewhat politcally minded would be the first category. There may be a certain political party associated with this group, but it cannot be told with what is in the data. The second category being made up of more affluent or oversharing people about their vacations who also care about current events. The third category which probably is made up of younger people would be potential meme pages. The fourth group being people very concerned with current events and not posting much personally. This might be indicative of another certain political party. The last category would be instagrammers who also post on twitter for extra exposure.
+
+
+
+
+
