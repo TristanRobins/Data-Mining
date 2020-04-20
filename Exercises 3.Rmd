@@ -54,15 +54,15 @@ mean((yhat_test_tree - green_test$Rent)^2) %>% sqrt
 ```
 ### In this problem, we are addressing the best outcome of predicting rental price charged to tenants of a buildings based off various factors defined in the dataset.
 
-### To accomplish this task, a tree model was utilized (rather than a simple linear model). The outcome of RMSE suggests the tree model was the better model compared to the linear model, given the reduction. This tree model incorporated the best 1000 branches of the tree (which cut the total number of branches by over 50%). The linear model predicted rent price using key distinguishing qualities of a building rather clustering qualities.
+### To accomplish this task, a tree model was utilized (rather than a simple linear model). The outcome of RMSE suggests the tree model was the better model compared to the linear model, given the reduction in RMSE. This tree model incorporated the best 1000 branches of the tree (which cut the total number of branches by over 50%). The linear model predicted rent price using key distinguishing qualities of a building rather than cluster qualities.
 
-### Clearly, the tree model was better able to address the fit of rental price charged to the tenant. But how can we find the average change in renatal price per square foot, holding all else fixed?
+### Clearly, the tree model was better able to address the fit of rental price charged to the tenant. But how can we find the average change in rental price per square foot, holding all else fixed?
 
 ```{r, echo = FALSE}
 plot(green_train$size, predict(prunedtree))
 ```
 
-### This is able to be partially answered by the graph above. We see that when square footage increases in these buildings by approximately 1 million square feet, we only see an uptick in rental price charged per tenant of between $0 and $50 on average.
+### To find the average change in rental price, the graph above presents a decent answer. We see that when square footage increases in these buildings by approximately 1 million square feet, we only see an uptick in rental price charged per tenant of between $0 and $50 on average, according to the best fit tree model.
 
 ## Question 2: What Causes What?
 
@@ -124,14 +124,14 @@ ggplot(wine2) +
   geom_text(aes(x=PC5, y=PC6, label = quality), size =3)
 ggplot(wine2) +
   geom_text(aes(x=PC5, y=PC7, label = quality), size =3)
-ggplot(wine2) +
-  geom_text(aes(x=PC6, y=PC7, label = quality), size =3)
 ```
-### In this problem, we are trying to address how to distinguish between different qualities of wines.
+In this problem, we are trying to address how to distinguish between different qualities of wines and whether it is possible to do with 11 chemcial properties.
 
 ### To do this, PCA was conducted by grouping on quality and examining the relationships between each of the PC's presented in the data. 
 
-### Only the best PC graphs were included but, when combined, suggest an ability to strongly distinguish between the quality of wine presented in the data.
+### Only the best PC graphs were included but, when combined, suggest an ability to strongly distinguish between the quality of wine presented in the data. Further, clusters could be ran on this, but the PCA provides so much distinction that clutering is not especially necessary.
+
+### Each relationship between PC's shows that there each wine quality ranking is distinct. There is very little overlap between qualities which tells us that the PCA does a great job at distinguishing between the different qualities of wine.
 
 ```{r colorPCA, echo = FALSE}
 wine_color = wine %>%
@@ -166,12 +166,13 @@ clust1 = kmeans(X, 2, nstart=50)
 qplot(color, total.sulfur.dioxide, data=wine, color=factor(clust1$cluster))
 
 ```
-### For this problem, we were tasked to sort on color as well.
+Further within this problem, we were tasked to sort on color if possible.
 
-### To do this, both a PCA graph of the distinctions between red and white wine, and a clustering algorithm of 50 starts were conducted to group.
+### To do this, both a PCA graph of the distinctions between red and white wine, and a clustering algorithm of 50 starts were conducted to group the wines.
 
-### The PC graph suggests that we can group based on PC's wherein 1 signifies red wine, while 0 signifies white wine. The PC graph suggests that it is possible to sort. Further, the clustering algorithm, although it undoubtedly will contain errors, due to some of the traits of white and red wines overlapping at times,
-shows a high degree of ability to cluster on color, given the 11 chemical properites of the wine that were assessed in the dataset.
+### The PC graph suggests that we can group based on PC's wherein 1 signifies red wine, while 0 signifies white wine. The PC graph suggests that it is possible to sort; however, it is too perfect to take at face value. As such, the clustering algorithm, although it undoubtedly contains errors due to some of the traits of white and red wines overlapping at times, shows a high degree of ability to cluster on color, given the 11 chemical properites of the wine that were assessed in the dataset.
+
+### The solution could be changed to incorporate 4 clusters, but anything more than 4 clusters starts to provide too little distinction between colors; as such, 2 clusters seemed to provide the most intuitive approach.
 
 # Question 4: Market Segmentation
 
@@ -199,17 +200,17 @@ summary(mydata.pca)
 mydata.pca$rotation
 ```
 
-# From the first principal component, it looks like NutrientH20's most important categories are chatter, current events, travel, photo sharing, and uncategorized. From the correlation table, chatter and photo sharing are incredibly close to each other when it comes to correlation with the first principal component. The first principal component accounts for about a third of the variance. From this information, it appeares the bulk of NutrientH20's followers are split amongst people who like taking photos and just chatting.
+### From the first principal component, it looks like NutrientH20's most important categories are chatter, current events, travel, photo sharing, and uncategorized. From the correlation table, chatter and photo sharing are incredibly close to each other when it comes to correlation with the first principal component. The first principal component accounts for about a third of the variance. From this information, it appeares the bulk of NutrientH20's followers are split amongst people who like taking photos and just chatting.
 
-# The second principal component which accounts for an additional fifth of the variance in NutrientH20's followers shows a high correlation with travel. This shares a negative correlation with chatter and photo sharing; I feel like travel detracts from photo sharing and chatter because people who normally just would chatter or share photos might be talking a lot about a vacation they just had or sharing pictures of that vacation. Maybe these people are the more affluent of NutrientH20's followers.
+### The second principal component which accounts for an additional fifth of the variance in NutrientH20's followers shows a high correlation with travel. This shares a negative correlation with chatter and photo sharing; I feel like travel detracts from photo sharing and chatter because people who normally just would chatter or share photos might be talking a lot about a vacation they just had or sharing pictures of that vacation. Maybe these people are the more affluent of NutrientH20's followers.
 
-# The third principal component accounts for roughly a fifth of the variance as well, and it is highly correlated with uncategorized. This is negatively correlated with everything except for photo sharing (which is near zero) and uncategorized. A theory I have is these are "meme" accounts because a "meme" category isn't anywhere in the data, and most "meme pages" don't typically chat with their followers or talk about current events or mention their travel plans, but they do post funny photos which might explain the slight correlation with photo sharing.
+### The third principal component accounts for roughly a fifth of the variance as well, and it is highly correlated with uncategorized. This is negatively correlated with everything except for photo sharing (which is near zero) and uncategorized. A theory I have is these are "meme" accounts because a "meme" category isn't anywhere in the data, and most "meme pages" don't typically chat with their followers or talk about current events or mention their travel plans, but they do post funny photos which might explain the slight correlation with photo sharing.
 
-# The fourth principal component accounts for a little less than a fifth of the variance, and it is most strongly correlated with current events. my hypothesis is that this is picking up on something to do with more political users, and maybe even a certain political party. This component is negatively correlated with travel, photo sharing, and chatter which makes me think that these followers don't post much about their personal lives and are more of a sort of activist type of poster.
+### The fourth principal component accounts for a little less than a fifth of the variance, and it is most strongly correlated with current events. my hypothesis is that this is picking up on something to do with more political users, and maybe even a certain political party. This component is negatively correlated with travel, photo sharing, and chatter which makes me think that these followers don't post much about their personal lives and are more of a sort of activist type of poster.
 
-# The fifth principal component acounts for the roughly remaining tenth of the variance in the data. It is roughly correlated to the same extent but in different magnitudes to both photo sharing and chatter. Photo sharing is the positive correlation and chatter being the negative. This would be a sort of instagramer who would be posting on twitter.
+### The fifth principal component acounts for the roughly remaining tenth of the variance in the data. It is roughly correlated to the same extent but in different magnitudes to both photo sharing and chatter. Photo sharing is the positive correlation and chatter being the negative. This would be a sort of instagramer who would be posting on twitter.
 
-# Taking all of this into consideration here would be my recommendation of what NutreientH20's market looks like in five categoires. People who don't travel a lot but are somewhat politcally minded would be the first category. There may be a certain political party associated with this group, but it cannot be told with what is in the data. The second category being made up of more affluent or oversharing people about their vacations who also care about current events. The third category which probably is made up of younger people would be potential meme pages. The fourth group being people very concerned with current events and not posting much personally. This might be indicative of another certain political party. The last category would be instagrammers who also post on twitter for extra exposure.
+### Taking all of this into consideration here would be my recommendation of what NutreientH20's market looks like in five categoires. People who don't travel a lot but are somewhat politcally minded would be the first category. There may be a certain political party associated with this group, but it cannot be told with what is in the data. The second category being made up of more affluent or oversharing people about their vacations who also care about current events. The third category which probably is made up of younger people would be potential meme pages. The fourth group being people very concerned with current events and not posting much personally. This might be indicative of another certain political party. The last category would be instagrammers who also post on twitter for extra exposure.
 
 
 
