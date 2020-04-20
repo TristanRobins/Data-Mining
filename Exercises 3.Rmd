@@ -40,8 +40,8 @@ prunedtree = prune(greentree, cp=best)
 length(unique(prunedtree$where))
 plot(prunedtree)
 ```
+
 ```{r, echo = FALSE}
-plot(predict(prunedtree), green_train$Rent)
 yhat_test_tree = predict(prunedtree, green_test)
 
 lm_starter = lm(Rent ~ size + stories + age + renovated + green_rating +
@@ -61,7 +61,8 @@ mean((yhat_test_tree - green_test$Rent)^2) %>% sqrt
 ```{r, echo = FALSE}
 plot(green_train$size, predict(prunedtree))
 ```
-### This is able to be partially answered by the graph above. We see that when square footage increases in these buildings by approximately 1 million square feet, we only see an uptick in rental price charged per tenant of about $25.
+
+### This is able to be partially answered by the graph above. We see that when square footage increases in these buildings by approximately 1 million square feet, we only see an uptick in rental price charged per tenant of between $0 and $50 on average.
 
 ## Question 2: What Causes What?
 
