@@ -26,6 +26,7 @@ library(ggplot2)
 library(lubridate)
 library(foreach)
 library(LICORS)
+set.seed(4)
 
 pitching <- read.csv("~/Documents/CleanPitching.csv")
 pitching[is.na(pitching)] <- 0
@@ -121,7 +122,7 @@ This random forest demonstrates the trends from 500 randomly generated trees. Th
 mean((yhat_test_rf - pitch_test$so)^2) %>% sqrt
 ```
 
-The point stands that a very good model can be generated from the tree and random forest method. By combining several trees, a fairly good model is able to be produced. It's possible that using lasso and OLS may yield less error due to less randomness.
+Clearly, the random forest outperforms the tree due to the added variation across multiple random trees. This is a fairly good model that is easily able to be produced. It's possible that using lasso and OLS may yield less error due to less randomness in choosing varibales like trees do.
 
 ## Lasso and OLS
 ```{r lasso, echo=FALSE, warning=FALSE, message=FALSE, fig.height=4}
