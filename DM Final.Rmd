@@ -5,15 +5,23 @@ date: "5/8/2020"
 output: pdf_document
 abstract: "The goal of this project is to assess the effectiveness of different prediction models on baseball data through the scope of minimizing out-of-sample RMSE. The end goal is to create the best performing model in terms of minimized RMSE for predicting strikeouts. The data collected was webscraped from MLB.com and contains all pitching stats on every pitcher between the years of 1990 until 2019 regular season games---this excludes spring training, the All-Star game, playoffs, and the World Series. We begin using a PCA for exploratory data analysis to get an idea of what sort of trends there are in the data and branch out into prediction using random forest, lasso, and OLS regression. We conclude the project by comparing the RMSE of all the regressions run."
 ---
-# Baseball
+# Introduction
 
 Baseball is a sport that has an abundance of metrics that can be assessed from a data mining perspective. As such, modeling the data is a unique and intriguing challenge---is it possible to find a model that most accurately describes the most pertinent metrics for baseball's pitchers? Further, is it possible to broadly characterize the best players through utilization of statistical modeling techniques?
 
 By breaking down baseball's most widely discussed defensive position, pitchers, we are able to better understand the metrics that define greatness through analysis of a pitcher's strikeouts (K's) and walks & hits per inning (whip).
 
-# Pitching
-
 Pitchers need to limit earned runs---this means getting many strikeouts or preventing hits and walks. As such, pitchers with a high count of strikeouts are perceived as better and pitchers with low whips are seen as especially elite. To begin, examination of PCA was utilized to characterize the features of the best pitchers.
+
+# Methods
+
+The data was collected from MLB.com using a webscraping technique done in Python. Every pitcher from 1990 until 2019 was included in the dataset---only in their regular season games. Ultimately, this resulted in 47 variables, some of which are entirely unrelated to pitching and instead batting.
+
+To analyze the data through an exploratory lens, many analyses were performed to compare different methods that were learned throughout the semester. Doing this allows us to better characterize the data of pitchers to predict the metrics that qualify elite pitchers.
+
+To compare results, principal components analysis was conducted to examine if there was an easy way to sort on pitchers, and if there was dependence between variables. Next, a random forest appraoch was conducted to see how well randomization of sorted variables in the data predicts. After this appraoch, a comparison of lasso and OLS (selected and unselected) was conducted.
+
+# Results
 
 ## Principal Components Analysis
 
@@ -89,7 +97,7 @@ pitch_train = pitching[train_cases,]
 pitch_test = pitching[test_cases,]
 
 pitch_tree = rpart(so ~ wpct + sv + ip + hr + whip + bb + bk +
-                     tbf + obp + sho + hb + gf + era, method="anova", data=pitch_train,
+                     tbf + obp + sho + hb + gf + era + cg, method="anova", data=pitch_train,
                   control=rpart.control(minsplit=3, cp=1e-6, xval=20))
 npitch = length(unique(pitch_tree$where))
 # look at the cross-validated error
@@ -108,8 +116,8 @@ Pruning the tree could yield an even better (lower) RMSE, but a random forest sh
 ### Random Forest
 
 ```{r pithcing_rf, echo=FALSE, warning=FALSE, message=FALSE, fig.height=3}
-rf <- randomForest(so ~ wpct + sv + ip + hr + whip + bb + bk +
-                     tbf + obp + sho + hb + gf + era, data = pitch_train)
+rf <- randomForest(so ~ (wpct + sv + ip + hr + whip + bb + bk +
+                     tbf + obp + sho + hb + gf + era + cg)^2, data = pitch_train)
 
 
 yhat_test_rf = predict(rf, pitch_test)
@@ -122,7 +130,7 @@ This random forest demonstrates the trends from 500 randomly generated trees. Th
 mean((yhat_test_rf - pitch_test$so)^2) %>% sqrt
 ```
 
-Clearly, the random forest outperforms the tree due to the added variation across multiple random trees. This is a fairly good model that is easily able to be produced. It's possible that using lasso and OLS may yield less error due to less randomness in choosing varibales like trees do.
+Clearly, the random forest outperforms the tree due to the added variation across multiple random trees. This is a fairly good model that is easily able to be produced and provides decent predictive power given the randomness of sorting on different variables within the dataset. As more variation is accounted for, the model becomes better because the best variables are sorted on more often and result in a better prediction.
 
 ## Lasso and OLS
 ```{r lasso, echo=FALSE, warning=FALSE, message=FALSE, fig.height=4}
